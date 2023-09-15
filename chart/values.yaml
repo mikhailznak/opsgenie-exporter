@@ -1,0 +1,17 @@
+namespace: default
+imagePullSecrets:
+podSecurityContext: {}
+securityContext: {}
+image:
+  repository:
+  tag: "latest"
+  pullPolicy: "Always"
+apiKeySecret: "opsgenie-api-key"
+service:
+  port: 9110
+resources: {}
+opsgenie:
+  teams: "all"
+  priorities: "P1,P2"
+  statuses: "open,closed"
+  apiKey:

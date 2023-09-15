@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opsgenie-exporter.fullname" . }}
+  namespace: {{ .Values.namespace | default "default" }}
+  labels:
+    {{- include "opsgenie-exporter.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "opsgenie-exporter.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "opsgenie-exporter.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+          {{- if .Values.apiKeySecret }}
+          env:
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: apiKey
+                  name: {{ .Values.apiKeySecret }}
+          {{- end }}
+          args:
+            - --port={{ .Values.service.port }}
+            - --teams={{ .Values.opsgenie.teams }}
+            - --priorities={{ .Values.opsgenie.priorities }}
+            - --statuses={{ .Values.opsgenie.statuses }}
+            {{- if not .Values.apiKeySecret }}
+            - --opsgenie.apiKey={{ .Values.opsgenie.apiKey }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
