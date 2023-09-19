@@ -41,7 +41,7 @@ func (cl *Opsgenie) GetOpsgenieAlertMetricsCreatedTotal(query string) (float64, 
 }
 
 func (cl *Opsgenie) GetOpsgenieTeams() ([]string, error) {
-	teamList := []string{}
+	var teamList []string
 
 	response, err := cl.teamClient.List(context.Background(), &team.ListTeamRequest{})
 	if err != nil {
