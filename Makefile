@@ -25,6 +25,10 @@ push-docker-ext:
 	docker push ${REPOSITORY}/$(IMAGE_NAME):${TAG}
 pipe-docker-ext: build-docker-ext push-docker-ext
 
-.PHONY: run-docker
+.PHONY: build-docker run-docker-clean
+run-docker-clean: build-docker
+	docker run --rm --network host -e API_KEY=${API_KEY} $(IMAGE_NAME):local
+
+.PHONY:
 run-docker:
 	docker run --rm --network host -e API_KEY=${API_KEY} $(IMAGE_NAME):local

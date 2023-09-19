@@ -11,11 +11,33 @@ import (
 )
 
 var (
-	apiKey     = flag.String("opsgenie.apiKey", "", "Opsgenie Api Key. Permissions: Read and Configuration access")
-	port       = flag.Int("port", 9110, "Exporter exposed port")
-	teams      = flag.String("teams", "", "List of teams to get mertrics")
-	priorities = flag.String("priorities", "P1,P2", "List of priorities to capture")
-	statuses   = flag.String("statuses", "open", "List of statuses to capture")
+	apiKey = flag.String("opsgenie.apiKey", "", "Opsgenie Api Key. Permissions: Read and Configuration access")
+	port   = flag.Int("port", 9110, "Exporter exposed port")
+	teams  = flag.String(
+		"teams",
+		"",
+		"List of teams to get metrics. "+
+			"`all` value means that will be received metric without querying `teams` label")
+	priorities = flag.String(
+		"priorities",
+		"P1,P2",
+		"List of priorities to capture. "+
+			"`all` value means that will be received metric without querying `priority` label")
+	statuses = flag.String(
+		"statuses",
+		"open",
+		"List of statuses to capture. "+
+			"`all` value means that will be received metric without querying `status` label")
+	filterByType = flag.String(
+		"types",
+		"",
+		"List of extra properties `type` to count alerts by specific type. "+
+			"`all` value means that will be received metric without querying `type` label")
+	pauseBetweenOpsgenieRequests = flag.Int(
+		"pause",
+		1,
+		"Pause between Opsgenie requests which exporter makes to get metrics count."+
+			"Time is in milliseconds")
 )
 
 func main() {

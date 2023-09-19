@@ -5,6 +5,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"log"
 	"strings"
+	"time"
 )
 
 type MetricsCollector struct {
@@ -19,7 +20,7 @@ func newMetricsCollector(opsgenieClient *Opsgenie) *MetricsCollector {
 		opsgenieAlertMetricsCount: prometheus.NewDesc(
 			"opsgenie_alert_created_total",
 			"How many alerts were created during all time",
-			[]string{"team", "status", "priority"},
+			[]string{"team", "status", "priority", "type"},
 			nil,
 		),
 	}
@@ -30,74 +31,65 @@ func (col *MetricsCollector) Describe(descs chan<- *prometheus.Desc) {
 	descs <- col.opsgenieAlertMetricsCount
 }
 func (col *MetricsCollector) Collect(metrics chan<- prometheus.Metric) {
-	// Get Opsgenie Teams
-	teamList := []string{}
-	if *teams == "all" {
-		response, err := col.client.GetOpsgenieTeams()
-		if err != nil {
-			log.Printf("Error get opsgenie team list: %s", err)
-			teamList = []string{}
-		} else {
-			teamList = response
-		}
-	} else {
-		teamList = strings.Split(*teams, ",")
+	metricsList := col.procAlertCount()
+	for _, metric := range metricsList {
+		metrics <- metric
 	}
+}
+func (col *MetricsCollector) procAlertCount() []prometheus.Metric {
+	// Get Opsgenie Teams
+	teamList := strings.Split(*teams, ",")
 
 	// Get priorities
-	priorityList := []string{}
-	if *priorities == "all" {
-		priorityList = []string{"all", "P1", "P2", "P3", "P4", "P5"}
-	} else {
-		priorityList = strings.Split(*priorities, ",")
-	}
+	priorityList := strings.Split(*priorities, ",")
 
 	// Get status
-	statusList := []string{}
-	if *statuses == "all" {
-		statusList = []string{"all", "open", "closed"}
-	} else {
-		statusList = strings.Split(*statuses, ",")
-	}
+	statusList := strings.Split(*statuses, ",")
 
+	// Get types
+	typeList := strings.Split(*filterByType, ",")
+
+	var promMetrics []prometheus.Metric
 	for _, team := range teamList {
 		for _, status := range statusList {
 			for _, priority := range priorityList {
-				labels := []string{team, status, priority}
-				metrics <- prometheus.MustNewConstMetric(
-					col.opsgenieAlertMetricsCount,
-					prometheus.CounterValue,
-					col.procOpsgenieAlertMetricsTotal(team, status, priority),
-					labels...,
-				)
+				for _, typeParam := range typeList {
+					labels := []string{team, status, priority, typeParam}
+					promMetrics = append(promMetrics, prometheus.MustNewConstMetric(
+						col.opsgenieAlertMetricsCount,
+						prometheus.CounterValue,
+						col.getOpsgenieAlertCount(team, status, priority, typeParam),
+						labels...,
+					))
+					time.Sleep(time.Millisecond * time.Duration(*pauseBetweenOpsgenieRequests))
+				}
 			}
 		}
 	}
+	return promMetrics
 }
-func (col *MetricsCollector) procOpsgenieAlertMetricsTotal(responders string, status string, priority string) float64 {
-	// Configure reponders query parameters
-	queryResponders := fmt.Sprintf("")
-	if responders != "all" && responders != "" {
-		queryResponders = fmt.Sprintf("responders:%s", responders)
-	}
-
-	// Configure status query parameters
-	queryStatus := fmt.Sprintf("")
-	if status != "all" && status != "" {
-		queryStatus = fmt.Sprintf("status:%s", status)
-	}
-
-	// Configure priority query parameters
-	queryPriority := fmt.Sprintf("")
-	if priority != "all" && priority != "" {
-		queryPriority = fmt.Sprintf("priority:%s", priority)
-	}
-
-	query := fmt.Sprintf("%s %s %s", queryResponders, queryStatus, queryPriority)
+func (col *MetricsCollector) getOpsgenieAlertCount(teams string, status string, priority string, typeParam string) float64 {
+	// Configure query parameters
+	queryResponders := getOpsgenieQueryParameter("teams", teams)
+	queryStatus := getOpsgenieQueryParameter("status", status)
+	queryPriority := getOpsgenieQueryParameter("priority", priority)
+	queryType := getOpsgenieQueryParameter("type", typeParam)
+	query := fmt.Sprintf("%s %s %s %s", queryResponders, queryStatus, queryPriority, queryType)
 	value, err := col.client.GetOpsgenieAlertMetricsCreatedTotal(query)
 	if err != nil {
-		log.Printf("Error during getting opsgenie_alert_created_total. Team: %s, Status: %s", err, responders, status)
+		log.Printf(
+			"Error during getting opsgenie_alert_created_total %s. Team: %s, Status: %s, Priority: %s, LabelType: %s",
+			err, teams, status, priority, typeParam)
 		return 0.0
 	}
 	return value
+}
+func getOpsgenieQueryParameter(name string, arg string) string {
+	queryArg := ""
+	if arg != "all" && arg != "" {
+		queryArg = fmt.Sprintf("%s:%s", name, arg)
+	} else if arg == "all" {
+		queryArg = ""
+	}
+	return queryArg
 }
