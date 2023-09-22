@@ -31,10 +31,39 @@ func (col *MetricsCollector) Describe(descs chan<- *prometheus.Desc) {
 	descs <- col.opsgenieAlertMetricsCount
 }
 func (col *MetricsCollector) Collect(metrics chan<- prometheus.Metric) {
-	metricsList := col.procAlertCount()
+	var metricsList []prometheus.Metric
+
+	metricsList = append(metricsList, col.procAlertCount()...)
+	metricsList = append(metricsList, col.procAlertTypeCount()...)
 	for _, metric := range metricsList {
 		metrics <- metric
 	}
+
+}
+func (col *MetricsCollector) procAlertTypeCount() []prometheus.Metric {
+	var promMetrics []prometheus.Metric
+
+	// Get Opsgenie Teams
+	teamList := strings.Split(*teams, ",")
+
+	// Get Priority filter value
+	priorityQueryValue := strings.Replace(*filterByTypeWithSpecificPriorities, ",", " OR ", -1)
+
+	// Get types
+	typeList := strings.Split(*filterByType, ",")
+	for _, team := range teamList {
+		for _, typeParam := range typeList {
+			labels := []string{team, "open", "", typeParam}
+			promMetrics = append(promMetrics, prometheus.MustNewConstMetric(
+				col.opsgenieAlertMetricsCount,
+				prometheus.CounterValue,
+				col.getOpsgenieAlertCount(team, "open", fmt.Sprintf("(%s)", priorityQueryValue), typeParam),
+				labels...,
+			))
+			time.Sleep(time.Millisecond * time.Duration(*pauseBetweenOpsgenieRequests))
+		}
+	}
+	return promMetrics
 }
 func (col *MetricsCollector) procAlertCount() []prometheus.Metric {
 	// Get Opsgenie Teams
@@ -46,23 +75,18 @@ func (col *MetricsCollector) procAlertCount() []prometheus.Metric {
 	// Get status
 	statusList := strings.Split(*statuses, ",")
 
-	// Get types
-	typeList := strings.Split(*filterByType, ",")
-
 	var promMetrics []prometheus.Metric
 	for _, team := range teamList {
 		for _, status := range statusList {
 			for _, priority := range priorityList {
-				for _, typeParam := range typeList {
-					labels := []string{team, status, priority, typeParam}
-					promMetrics = append(promMetrics, prometheus.MustNewConstMetric(
-						col.opsgenieAlertMetricsCount,
-						prometheus.CounterValue,
-						col.getOpsgenieAlertCount(team, status, priority, typeParam),
-						labels...,
-					))
-					time.Sleep(time.Millisecond * time.Duration(*pauseBetweenOpsgenieRequests))
-				}
+				labels := []string{team, status, priority, "all"}
+				promMetrics = append(promMetrics, prometheus.MustNewConstMetric(
+					col.opsgenieAlertMetricsCount,
+					prometheus.CounterValue,
+					col.getOpsgenieAlertCount(team, status, priority, "all"),
+					labels...,
+				))
+				time.Sleep(time.Millisecond * time.Duration(*pauseBetweenOpsgenieRequests))
 			}
 		}
 	}
@@ -70,7 +94,7 @@ func (col *MetricsCollector) procAlertCount() []prometheus.Metric {
 }
 func (col *MetricsCollector) getOpsgenieAlertCount(teams string, status string, priority string, typeParam string) float64 {
 	// Configure query parameters
-	queryResponders := getOpsgenieQueryParameter("teams", teams)
+	queryResponders := getOpsgenieQueryParameter("responders", teams)
 	queryStatus := getOpsgenieQueryParameter("status", status)
 	queryPriority := getOpsgenieQueryParameter("priority", priority)
 	queryType := getOpsgenieQueryParameter("type", typeParam)

@@ -30,9 +30,13 @@ var (
 			"`all` value means that will be received metric without querying `status` label")
 	filterByType = flag.String(
 		"types",
-		"",
+		"all",
 		"List of extra properties `type` to count alerts by specific type. "+
 			"`all` value means that will be received metric without querying `type` label")
+	filterByTypeWithSpecificPriorities = flag.String(
+		"filterWithPriority",
+		"P1,P2,P3,P4",
+		"List of priorities which have impact on `type` filter.")
 	pauseBetweenOpsgenieRequests = flag.Int(
 		"pause",
 		1,
